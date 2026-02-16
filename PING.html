@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Ping / Latency Simulator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: white;
+        margin: 0;
+        overflow: hidden;
+    }
+
+    #window {
+        width: 200px;
+        height: 150px;
+        background: #4caf50;
+        position: absolute;
+        top: 200px;
+        left: 200px;
+        cursor: grab;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        border-radius: 10px;
+        user-select: none;
+    }
+
+    #controls {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background: #222;
+        padding: 10px;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    input, select, button {
+        padding: 5px;
+    }
+
+    #infoIcon {
+        position: fixed;
+        top: 10px;
+        right: 15px;
+        background: #333;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    #infoPanel, #presetPanel {
+        position: fixed;
+        top: 50px;
+        right: 15px;
+        background: #222;
+        padding: 15px;
+        width: 300px;
+        border-radius: 10px;
+        display: none;
+    }
+
+    #presetPanel {
+        top: 50px;
+        left: 15px;
+    }
+
+    .preset-btn {
+        display: block;
+        width: 100%;
+        margin: 5px 0;
+        background: #444;
+        border: none;
+        color: white;
+        cursor: pointer;
+    }
+
+    .preset-btn:hover {
+        background: #666;
+    }
+
+    #status {
+        position: fixed;
+        top: 10px;
+        left: 15px;
+        background: #222;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+</style>
+</head>
+<body>
+
+<div id="window">Drag me</div>
+
+<div id="infoIcon">i</div>
+
+<div id="status">Status: 200 ms – deutlich spürbar</div>
+
+<div id="infoPanel">
+    <b>Erklärung:</b><br><br>
+    <b>Durchgehend:</b> Konstante Verzögerung. Alles bewegt sich dauerhaft hinterher.<br><br>
+    <b>Periodisch:</b> Regelmäßige Lag-Spikes. Kurzes Einfrieren, dann normal.<br><br>
+    <b>Jitter:</b> Zufällige Schwankungen. Unruhige, schwammige Bewegung.<br><br>
+    <b>Paketverlust (optional später):</b> Fenster springt oder reagiert gar nicht.
+</div>
+
+<div id="presetPanel">
+    <b>Ping-Gefühl Presets:</b><br>
+    <button class="preset-btn" onclick="setPreset(50, 'Kaum spürbar')">50 ms – kaum spürbar</button>
+    <button class="preset-btn" onclick="setPreset(100, 'Leicht schwammig')">100 ms – leicht schwammig</button>
+    <button class="preset-btn" onclick="setPreset(200, 'Deutlich verzögert')">200 ms – deutlich</button>
+    <button class="preset-btn" onclick="setPreset(400, 'Starkes Lag')">400 ms – starkes Lag</button>
+    <button class="preset-btn" onclick="setPreset(700, 'Fast unspielbar')">700 ms – fast unspielbar</button>
+</div>
+
+<div id="controls">
+    <label>Modus:
+        <select id="mode">
+            <option value="constant">Durchgehend</option>
+            <option value="periodic">Periodisch</option>
+            <option value="jitter">Jitter</option>
+        </select>
+    </label>
+
+    <label>Ping (ms):
+        <input type="number" id="ping" value="200">
+    </label>
+
+    <label>Max Ping:
+        <input type="number" id="maxPing" value="500">
+    </label>
+
+    <label>Intervall (ms):
+        <input type="number" id="interval" value="2000">
+    </label>
+
+    <button onclick="togglePresets()">Presets</button>
+</div>
+
+<script>
+const win = document.getElementById("window");
+const infoIcon = document.getElementById("infoIcon");
+const infoPanel = document.getElementById("infoPanel");
+const presetPanel = document.getElementById("presetPanel");
+const status = document.getElementById("status");
+
+let dragging = false;
+let offsetX = 0;
+let offsetY = 0;
+let realX = 200;
+let realY = 200;
+let history = [];
+
+infoIcon.onclick = () => {
+    infoPanel.style.display =
+        infoPanel.style.display === "block" ? "none" : "block";
+};
+
+function togglePresets() {
+    presetPanel.style.display =
+        presetPanel.style.display === "block" ? "none" : "block";
+}
+
+function setPreset(value, label) {
+    document.getElementById("ping").value = value;
+    status.textContent = "Status: " + value + " ms – " + label;
+}
+
+win.addEventListener("mousedown", (e) => {
+    dragging = true;
+    offsetX = e.clientX - realX;
+    offsetY = e.clientY - realY;
+    win.style.cursor = "grabbing";
+});
+
+document.addEventListener("mouseup", () => {
+    dragging = false;
+    win.style.cursor = "grab";
+});
+
+document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    realX = e.clientX - offsetX;
+    realY = e.clientY - offsetY;
+
+    history.push({
+        time: performance.now(),
+        x: realX,
+        y: realY
+    });
+});
+
+function getLatency() {
+    const mode = document.getElementById("mode").value;
+    const ping = parseInt(document.getElementById("ping").value);
+    const maxPing = parseInt(document.getElementById("maxPing").value);
+    const interval = parseInt(document.getElementById("interval").value);
+    const now = performance.now();
+
+    if (mode === "constant") return ping;
+
+    if (mode === "periodic") {
+        if (Math.floor(now / interval) % 2 === 0) return ping;
+        return maxPing;
+    }
+
+    if (mode === "jitter") {
+        return ping + Math.random() * (maxPing - ping);
+    }
+
+    return 0;
+}
+
+function render() {
+    const now = performance.now();
+    const latency = getLatency();
+    const targetTime = now - latency;
+
+    let delayed = history.findLast(p => p.time <= targetTime);
+
+    if (delayed) {
+        win.style.left = delayed.x + "px";
+        win.style.top = delayed.y + "px";
+    }
+
+    requestAnimationFrame(render);
+}
+
+render();
+</script>
+
+</body>
+</html>
